@@ -1,0 +1,241 @@
+---
+title: "Assignment 1 - Data processing in R and Python"
+author: "Michał Taczała"
+output: html_document
+date: "2023-11-06"
+---
+
+
+## Attachment of packages
+```{r attachment_of_packages, message=FALSE, warning=FALSE, results='hide'}
+library(sqldf)
+library(compare)
+library(dplyr)
+library(data.table)
+source('Michał_Taczała_assignment_1.R')
+```
+## Reading the data
+```{r reading_data}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+Users <- read.csv("Users.csv")
+Posts <- read.csv("Posts.csv")
+Comments <- read.csv("Comments.csv")
+PostLinks <- read.csv("PostLinks.csv")
+```
+## Query 1
+``` sql
+SELECT Location, COUNT(*) AS Count
+FROM (
+  SELECT Posts.OwnerUserId, Users.Id, Users.Location
+  FROM Users
+  JOIN Posts ON Users.Id = Posts.OwnerUserId
+)
+WHERE Location NOT IN ('')
+GROUP BY Location
+ORDER BY Count DESC
+LIMIT 10
+```
+#### Query explanation
+
+10 most popular locations for users to post
+
+#### Results of comparing the equivalence of solutions for each task
+```{r query1}
+sqldf1 <- sqldf_1(Posts, Users)
+base1 <- base_1(Posts, Users)
+dplyr1 <- dplyr_1(Posts, Users)
+data.table1 <- data.table_1(Posts, Users)
+
+compare(sqldf1, base1, allowAll=TRUE)
+compare(sqldf1, dplyr1, allowAll = TRUE)
+compare(sqldf1, data.table1, allowAll = TRUE)
+```
+#### Time measurement
+```{r microbenchmark1}
+microbenchmark::microbenchmark(
+  sqldf1 = sqldf_1(Posts, Users),
+  base1 = base_1(Posts, Users),
+  dplyr1 = dplyr_1(Posts, Users),
+  data.table1 = data.table_1(Posts, Users),
+  times = 10
+)
+```
+
+## Query 2
+```sql
+SELECT Posts.Title, RelatedTab.NumLinks FROM
+(
+  SELECT RelatedPostId AS PostId, COUNT(*) AS NumLinks
+  FROM PostLinks
+  GROUP BY RelatedPostId
+) AS RelatedTab
+JOIN Posts ON RelatedTab.PostId=Posts.Id
+WHERE Posts.PostTypeId=1 ORDER BY NumLinks DESC
+```
+#### Query explanation
+select post titles and sort them by number of post links in descending order
+#### Results of comparing the equivalence of solutions for each task
+```{r query2}
+sqldf2 <- sqldf_2(Posts, PostLinks)
+base2 <- base_2(Posts, PostLinks)
+dplyr2 <- dplyr_2(Posts, PostLinks)
+data.table2 <- data.table_2(Posts, PostLinks)
+compare(sqldf2, base2, allowAll=TRUE)
+compare(sqldf2, dplyr2, allowAll = TRUE)
+compare(sqldf2, data.table2, allowAll = TRUE)
+```
+#### Time measurement
+```{r microbenchmark2}
+microbenchmark::microbenchmark(
+  sqldf2 = sqldf_2(Posts, PostsLinks),
+  base2 = base_2(Posts, PostsLinks),
+  dplyr2 = dplyr_2(Posts, PostsLinks),
+  data.table2 = data.table_2(Posts, PostsLinks),
+  times = 10
+)
+```
+
+## Query 3
+```sql
+SELECT Title, CommentCount, ViewCount, CommentsTotalScore, DisplayName, Reputation, Location 
+FROM (
+  SELECT Posts.OwnerUserId, Posts.Title, Posts.CommentCount, Posts.ViewCount, CmtTotScr.CommentsTotalScore
+  FROM (
+    SELECT PostId, SUM(Score) AS CommentsTotalScore FROM Comments
+    GROUP BY PostId
+  ) AS CmtTotScr
+  JOIN Posts ON Posts.Id = CmtTotScr.PostId WHERE Posts.PostTypeId=1
+) AS PostsBestComments
+JOIN Users ON PostsBestComments.OwnerUserId = Users.Id
+ORDER BY CommentsTotalScore DESC
+LIMIT 10
+```
+#### Query explanation
+
+Select data of post and user who wrote that post for the 10 best posts by comment score
+
+#### Results of comparing the equivalence of solutions for each task
+```{r query3}
+sqldf3 <- sqldf_3(Posts, Users, Comments)
+base3 <- base_3(Posts, Users, Comments)
+dplyr3 <- dplyr_3(Posts, Users, Comments)
+data.table3 <- data.table_3(Posts, Users, Comments)
+compare(sqldf3, base3, allowAll=TRUE)
+compare(sqldf3, dplyr3, allowAll=TRUE)
+compare(sqldf3, data.table3, allowAll = TRUE)
+```
+#### Time measurement
+```{r microbenchmark3}
+microbenchmark::microbenchmark(
+  sqldf3 = sqldf_3(Posts, Users, Comments),
+  base3 = base_3(Posts, Users, Comments),
+  dplyr3 = dplyr_3(Posts, Users, Comments),
+  data.table3 = data.table_3(Posts, Users, Comments),
+  times = 10
+)
+```
+
+
+## Query 4
+```sql
+SELECT DisplayName, QuestionsNumber, AnswersNumber, Location, Reputation, UpVotes, DownVotes
+FROM (
+  SELECT * FROM (
+    SELECT COUNT(*) as AnswersNumber, OwnerUserId FROM Posts
+    WHERE PostTypeId = 2
+    GROUP BY OwnerUserId
+  ) AS Answers 
+  JOIN (
+    SELECT COUNT(*) as QuestionsNumber, OwnerUserId FROM Posts
+    WHERE PostTypeId = 1
+    GROUP BY OwnerUserId
+  ) AS Questions
+  ON Answers.OwnerUserId = Questions.OwnerUserId 
+  WHERE AnswersNumber > QuestionsNumber
+  ORDER BY AnswersNumber DESC
+  LIMIT 5
+) AS PostsCounts
+JOIN Users ON PostsCounts.OwnerUserId = Users.Id
+```
+#### Query explanation
+
+Select user's post's info for top5 posts with the greatest number of answers where the number of answers is greater than the number of questions
+
+#### Results of comparing the equivalence of solutions for each task
+```{r query4}
+sqldf4 <- sqldf_4(Posts, Users)
+base4 <- base_4(Posts, Users)
+dplyr4 <- dplyr_4(Posts, Users)
+data.table4 <- data.table_4(Posts, Users)
+compare(sqldf4, base4, allowAll=TRUE)
+compare(sqldf4, dplyr4, allowAll=TRUE)
+compare(sqldf4, data.table4, allowAll = TRUE)
+```
+#### Time measurement
+```{r microbenchmark4}
+microbenchmark::microbenchmark(
+  sqldf4 = sqldf_4(Posts, Users),
+  base4 = base_4(Posts, Users),
+  dplyr4 = dplyr_4(Posts, Users),
+  data.table4 = data.table_4(Posts, Users),
+  times = 10
+)
+```
+
+
+## Query 5
+```sql
+SELECT Questions.Id, Questions.Title, BestAnswers.MaxScore,
+Posts.Score AS AcceptedScore, BestAnswers.MaxScore-Posts.Score AS Difference
+FROM (
+  SELECT Id, ParentId, MAX(Score) AS MaxScore FROM Posts
+  WHERE PostTypeId==2
+  GROUP BY ParentId
+) AS BestAnswers
+JOIN (
+  SELECT * FROM Posts
+  WHERE PostTypeId==1 
+) AS Questions
+ON Questions.Id=BestAnswers.ParentId
+JOIN Posts ON Questions.AcceptedAnswerId=Posts.Id
+WHERE Difference>50
+ORDER BY Difference DESC
+```
+#### Query explanation
+
+Select and sort in descending order posts where the difference between max obtained post's score and normal post's score is greater than 50 
+
+#### Results of comparing the equivalence of solutions for each task
+```{r query5}
+sqldf5 <- sqldf_5(Posts)
+base5 <- base_5(Posts)
+dplyr5 <- dplyr_5(Posts)
+data.table5 <- data.table_5(Posts)
+compare(sqldf5, base5, allowAll=TRUE)
+compare(sqldf5, dplyr5, allowAll=TRUE)
+compare(sqldf5, data.table5, allowAll = TRUE)
+```
+#### Time measurement
+```{r}
+microbenchmark::microbenchmark(
+  sqldf5=sqldf_5(Posts),
+  base5=base_5(Posts),
+  dplyr5=dplyr_5(Posts),
+  data.table5=data.table_5(Posts),
+  times=10
+)
+```
+
+## Summary
+
+The main difference between all these packages is the execution time.
+
+Usually(but not always) functions created using data.table were the fastest ones, the next were these created with dplyr, then base functions and then the slowest one were the ones using slqdf.
+
+In some cases data.table was not the fastest, but the difference was very little.
+
+SLQDF was always the slowest one, so I suppose that it's a good choice to create our custom functions using for example dplyr or data.table instead of using SQLDF especially when execution time if important for us
+
+For me, the most intuitive and pleasant one was dplyr. Using this library was simple, functions was named intuitively and by creating pipelines I didn't have to assign the results to variables in every step what was very convenient.
+
+
